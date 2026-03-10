@@ -28,7 +28,7 @@ let globalSummaryData = {};
 
 const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:8000'
-    : 'https://ecoshift-api-qan2.onrender.com';
+    : 'https://ecoshift-api-e9ua.onrender.com';
 
 /**
  * Fetches timeseries, forecast, and summary data from the API.
