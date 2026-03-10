@@ -1,10 +1,30 @@
 import json
+import asyncio
+import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from utils import load_processed_data, load_forecast_data
 
 app = FastAPI(title="EcoShift API")
+
+async def refresh_data_periodically():
+    while True:
+        try:
+            print("Running background data refresh...")
+            proc1 = await asyncio.create_subprocess_exec(sys.executable, "generate_raw_data.py")
+            await proc1.communicate()
+            proc2 = await asyncio.create_subprocess_exec(sys.executable, "process_data.py")
+            await proc2.communicate()
+            print("Data refresh complete.")
+        except Exception as e:
+            print(f"Background refresh failed: {e}")
+        # Wait for 1 hour (3600 seconds)
+        await asyncio.sleep(3600)
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(refresh_data_periodically())
 
 # Setup CORS to allow a local frontend to communicate with the API
 origins = [
