@@ -1,0 +1,51 @@
+import json
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+from utils import load_processed_data, load_forecast_data
+
+app = FastAPI(title="EcoShift API")
+
+# Setup CORS to allow a local frontend to communicate with the API
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:5500",
+    "https://[YOUR_NETLIFY_APP_NAME].netlify.app",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+DATA_FILE = Path(__file__).parent / "processed_data.json"
+FORECAST_FILE = Path(__file__).parent / "forecast_data.json"
+
+@app.get("/api/summary")
+def get_summary():
+    """Returns total energy across all sources and total emissions."""
+    data = load_processed_data(DATA_FILE)
+    
+    total_energy = sum(
+        item.get("solar_kwh", 0) + item.get("wind_kwh", 0) + item.get("grid_kwh", 0)
+        for item in data
+    )
+    total_emissions = sum(item.get("carbon_emissions_kg", 0) for item in data)
+    
+    return {
+        "total_energy_kwh": total_energy,
+        "total_emissions_kg": total_emissions
+    }
+
+@app.get("/api/timeseries")
+def get_timeseries():
+    """Returns the full array of data for charting purposes."""
+    return load_processed_data(DATA_FILE)
+
+@app.get("/api/forecast")
+def get_forecast():
+    """Returns the 24-hour predictive forecast data."""
+    return load_forecast_data(FORECAST_FILE)
