@@ -5,14 +5,15 @@
 
 EcoShift is an AI-powered energy dashboard designed to track, analyze, and forecast renewable (Solar, Wind) and non-renewable (Grid) energy consumption, alongside carbon emissions. The platform provides insights and predictions using historical data and simple heuristic ML models to promote sustainable energy usage.
 
+> **Disclaimer**: All data presented in this application (historical, current, and forecasted) is synthetically generated for demonstration purposes and does not represent a real-world situation or actual energy grid.
+
 ## Technology Stack
 
 ### Backend
 - **Python**: Core logic and data processing.
 - **FastAPI**: High-performance API routing and serving.
 - **Uvicorn**: ASGI server for running the FastAPI application.
-- **Pandas & NumPy**: Data manipulation, cleaning, and ML forecasting.
-- **Scikit-Learn**: Prepared for advanced future predictive modeling.
+- **Pandas & NumPy**: Data manipulation, cleaning, and heuristic ML forecasting.
 
 ### Frontend
 - **HTML5 & Vanilla JavaScript**: Core structure and dynamic UI logic.
@@ -40,7 +41,15 @@ EcoShift is an AI-powered energy dashboard designed to track, analyze, and forec
 
 ## Usage
 
-Running the application end-to-end requires preparing the data, generating the forecast, and launching the backend API. 
+### Automated Launch (Recommended)
+You can launch the entire application seamlessly using the provided automation script:
+```bash
+python3 start.py
+```
+This script will automatically generate the data, start the backend API server, and instantly open the dashboard in your default browser.
+
+### Manual Launch
+If you prefer to run the components individually:
 
 1. **Generate Raw Data**: Creates `raw_energy_data.csv` with simulated historical energy usage.
    ```bash
@@ -64,5 +73,7 @@ Running the application end-to-end requires preparing the data, generating the f
 ## Features
 - **Historical Timeseries Data**: View past energy generation across Solar, Wind, and Grid.
 - **Carbon Emission Tracking**: Dynamically measure carbon footprint based on user-adjustable grid carbon intensity factors.
-- **24-Hour Predictive Forecast**: Anticipate tomorrow’s energy mix to maximize clear-energy usage.
+- **24-Hour Predictive Forecast**: Anticipate tomorrow’s energy mix to maximize clear-energy usage, powered by a dedicated Predictive Forecasting ML module.
+- **Auto-Refresh Background Task**: Executes an automated hourly regeneration of synthetic data and forecasts, ensuring the live application is continually updated without manual restarts.
+- **CSV Export**: Built-in utility directly on the dashboard that allows users to instantly download timeseries and emissions data as a CSV file for external use.
 - **Interactive UI**: Fluid animations and highly-responsive styling.
