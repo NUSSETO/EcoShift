@@ -1,5 +1,6 @@
 # EcoShift
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-funny--zuccutto--f43fad.netlify.app-blue)](https://funny-zuccutto-f43fad.netlify.app)
 ![EcoShift Dashboard](https://img.shields.io/badge/Status-Production%20Ready-success)
 
 EcoShift is an AI-powered energy dashboard designed to track, analyze, and forecast renewable (Solar, Wind) and non-renewable (Grid) energy consumption, alongside carbon emissions. The platform provides insights and predictions using historical data and simple heuristic ML models to promote sustainable energy usage.
