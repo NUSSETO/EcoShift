@@ -10,7 +10,7 @@ app = FastAPI(title="EcoShift API")
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:5500",
-    "https://[YOUR_NETLIFY_APP_NAME].netlify.app",
+    "https://funny-zuccutto-f43fad.netlify.app",
 ]
 
 app.add_middleware(
