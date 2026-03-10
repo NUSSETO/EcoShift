@@ -165,28 +165,13 @@
 
                     <section class="settings-form"
                         style="background: rgba(11, 15, 25, 0.4); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 20px; padding: 2.5rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-subtle);">
-                        <div class="form-group"
-                            style="margin-bottom: 2.5rem; display: flex; justify-content: space-between; align-items: center; max-width: 600px;">
-                            <div>
-                                <h3 style="color: var(--text-primary); margin-bottom: 0.2rem; font-size: 1.1rem;">
-                                    Dark/Light Mode</h3>
-                                <p style="color: var(--text-secondary); font-size: 0.9rem;">Toggle between dark and
-                                    light themes.</p>
-                            </div>
-                            <label class="switch"
-                                style="position: relative; display: inline-block; width: 60px; height: 34px;">
-                                <input type="checkbox" checked style="opacity: 0; width: 0; height: 0;">
-                                <span class="slider round"
-                                    style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--accent-neon-green); transition: .4s; border-radius: 34px; box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);"></span>
-                                <span class="slider-thumb"
-                                    style="position: absolute; content: ''; height: 26px; width: 26px; left: 30px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%;"></span>
-                            </label>
-                        </div>
+
 
                         <div class="form-group" style="margin-bottom: 2.5rem; max-width: 600px;">
                             <label for="carbon-factor"
                                 style="display: block; color: var(--text-primary); margin-bottom: 0.8rem; font-size: 1.1rem; font-weight: 600;">Carbon
-                                Conversion Factor (kg/kWh)</label>
+                                Conversion Factor (kg/kWh) <span class="info-tooltip"
+                                    data-tooltip="The amount of CO₂ (in kg) emitted into the atmosphere for every 1 kilowatt-hour of energy drawn from the local power grid.">?</span></label>
                             <input type="number" id="carbon-factor" value="0.45" step="0.01"
                                 style="width: 100%; padding: 1.2rem; background: rgba(11, 15, 25, 0.5); border: 1px solid var(--border-color); border-radius: 12px; color: var(--text-primary); font-family: var(--font-family); font-size: 1.1rem; outline: none; transition: border-color 0.3s, box-shadow 0.3s;">
                         </div>

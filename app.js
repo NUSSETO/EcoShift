@@ -448,7 +448,23 @@ function setupReports() {
     const downloadBtn = document.querySelector('#view-reports .btn-primary');
     if (downloadBtn) {
         downloadBtn.addEventListener('click', () => {
-            alert('Downloading historical CSV export...');
+            const headers = ['timestamp', 'solar_kwh', 'wind_kwh', 'grid_kwh', 'carbon_emissions_kg'];
+            let csvContent = headers.join(',') + '\n';
+
+            globalTimeseriesData.forEach(row => {
+                const rowData = headers.map(header => row[header]);
+                csvContent += rowData.join(',') + '\n';
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'ecoshift_export.csv');
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         });
     }
 }
@@ -527,14 +543,5 @@ function setupSettingsModifiers() {
         });
     }
 
-    const themeToggle = document.querySelector('.switch input[type="checkbox"]');
-    if (themeToggle) {
-        themeToggle.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                document.body.classList.remove('light-mode');
-            } else {
-                document.body.classList.add('light-mode');
-            }
-        });
-    }
+
 }
