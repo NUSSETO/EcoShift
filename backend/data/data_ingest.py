@@ -1,10 +1,22 @@
 import os
 import json
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 import requests
 import pandas as pd
+
+def fetch_with_retry(fetch_fn, retries=3, delay=5):
+    """Call fetch_fn, retrying up to `retries` times on failure."""
+    for attempt in range(1, retries + 1):
+        try:
+            return fetch_fn()
+        except Exception as e:
+            logging.warning(f"Attempt {attempt}/{retries} failed: {e}")
+            if attempt < retries:
+                time.sleep(delay)
+    raise RuntimeError(f"All {retries} attempts failed.")
 
 # Set up simple logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -131,18 +143,26 @@ def main():
 
     limit = calculate_fetch_limit()
     logging.info(f"Fetching NESO Demand data (limit={limit})")
-    df_neso = fetch_neso_demand(limit=limit)
-    
-    if df_neso.empty:
-        logging.error("Failed to fetch NESO data.")
+    try:
+        df_neso = fetch_with_retry(lambda: fetch_neso_demand(limit=limit))
+    except RuntimeError as e:
+        logging.error(f"NESO fetch failed after retries: {e}")
         return
-        
+
+    if df_neso.empty:
+        logging.error("NESO returned empty dataset.")
+        return
+
     # NESO data often lags. Use its date range to fetch Carbon Intensity data.
     start_time = df_neso.index.min()
     end_time = df_neso.index.max()
-    
+
     logging.info(f"Fetching Carbon Intensity data from {start_time} to {end_time}")
-    df_carbon = fetch_carbon_intensity(start_time, end_time)
+    try:
+        df_carbon = fetch_with_retry(lambda: fetch_carbon_intensity(start_time, end_time))
+    except RuntimeError as e:
+        logging.error(f"Carbon Intensity fetch failed after retries: {e}")
+        return
     
     if df_carbon.empty:
         logging.error("Failed to fetch Carbon data for the given range.")

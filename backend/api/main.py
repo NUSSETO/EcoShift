@@ -4,8 +4,6 @@ import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from api.utils import load_processed_data
-
 from ml.ml_forecast import EnergyForecaster
 
 app = FastAPI(title="EcoShift API")
@@ -20,29 +18,45 @@ def get_forecaster():
         forecaster = EnergyForecaster(str(MODEL_FILE))
     return forecaster
 
+_refresh_count = 0
+
+async def run_subprocess(script: str, backend_dir: str) -> bool:
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, script,
+        cwd=backend_dir,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        print(f"[{script}] failed (code {proc.returncode}): {stderr.decode()[:500]}")
+        return False
+    return True
+
 async def refresh_data_periodically():
+    global _refresh_count, forecaster
+    backend_dir = str(Path(__file__).parent.parent)
     while True:
+        await asyncio.sleep(3600)  # wait first, build already ran ingest+train
+        _refresh_count += 1
+        print(f"Background refresh #{_refresh_count}...")
         try:
-            print("Running background data refresh...")
-            backend_dir = str(Path(__file__).parent.parent)
-            proc1 = await asyncio.create_subprocess_exec(
-                sys.executable, "data/data_ingest.py",
-                cwd=backend_dir,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await proc1.communicate()
-            if proc1.returncode == 0:
-                print("Data refresh complete.")
-                # Invalidate cache so next request picks up fresh data
+            ok = await run_subprocess("data/data_ingest.py", backend_dir)
+            if ok:
+                print("Data ingestion complete.")
                 _forecast_cache["timestamps"].clear()
                 _forecast_cache["data"].clear()
+                # Retrain model every 7 refreshes (~weekly)
+                if _refresh_count % 7 == 0:
+                    print("Retraining ML model...")
+                    trained = await run_subprocess("ml/train_model.py", backend_dir)
+                    if trained:
+                        forecaster = None  # force lazy reload of new model
+                        print("Model retrained.")
             else:
-                print(f"Data refresh exited with code {proc1.returncode}: {stderr.decode()}")
+                print("Ingest failed — keeping existing data.")
         except Exception as e:
-            print(f"Background refresh failed: {e}")
-        # Wait for 1 hour (3600 seconds)
-        await asyncio.sleep(3600)
+            print(f"Background refresh error: {e}")
 
 @app.on_event("startup")
 async def startup_event():
@@ -64,6 +78,14 @@ app.add_middleware(
 )
 
 HISTORICAL_FILE = Path(__file__).parent.parent / "data" / "historical_data.parquet"
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "data_available": HISTORICAL_FILE.exists(),
+        "model_loaded": get_forecaster() is not None,
+    }
 
 import time
 
