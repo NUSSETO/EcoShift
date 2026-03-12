@@ -14,7 +14,7 @@ OUTPUT_DIR = "data"
 PARQUET_PATH = os.path.join(OUTPUT_DIR, "historical_data.parquet")
 JSON_PATH = os.path.join(OUTPUT_DIR, "latest_data.json")
 
-NESO_RESOURCE_ID = "8a4a771c-3929-4e56-93ad-cdf13219dea5" # 2026 data
+NESO_RESOURCE_ID = "177f6fa4-ae49-4182-81ea-0c6b35f26ca6" # Demand Data Update (live, daily updated)
 NESO_API_URL = "https://api.neso.energy/api/3/action/datastore_search"
 
 CARBON_API_URL_BASE = "https://api.carbonintensity.org.uk/intensity"
@@ -46,7 +46,8 @@ def fetch_neso_demand(limit=500):
     params = {
         'resource_id': NESO_RESOURCE_ID,
         'limit': limit,
-        'sort': '_id desc' # Assuming we want recent records, or we might need to sort by date
+        'sort': '_id desc',
+        'filters': '{"FORECAST_ACTUAL_INDICATOR": "A"}'  # Actuals only, exclude future forecasts
     }
     response = requests.get(NESO_API_URL, params=params)
     response.raise_for_status()
