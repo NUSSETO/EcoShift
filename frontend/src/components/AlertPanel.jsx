@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 /**
  * AlertPanel — renders active alerts in two modes:
- *   mode="header"  → compact horizontal chips for the top navigation bar
+ *   mode="header"  → inline card(s) for the top navigation bar (full detail)
  *   mode="default" → full stacked cards (original layout, kept for fallback)
  */
 export default function AlertPanel({ alerts, mode = 'default' }) {
@@ -19,26 +19,34 @@ export default function AlertPanel({ alerts, mode = 'default' }) {
         setDismissedAlerts(prev => new Set(prev).add(alertId));
     };
 
-    /* ── Compact header chips ── */
+    const formatTime = (ts) =>
+        new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' }) +
+        ' · ' +
+        new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    /* ── Inline header cards — full detail, horizontal layout ── */
     if (mode === 'header') {
         return (
             <div className="header-alert-panel">
                 {visibleAlerts.map((alert) => (
                     <div
                         key={alert.alert_id}
-                        className={`header-alert-chip ${alert.severity === 'CRITICAL' ? 'critical' : 'warning'}`}
-                        title={alert.message}
+                        className={`header-alert-card ${alert.severity === 'CRITICAL' ? 'critical' : 'warning'}`}
                     >
-                        <AlertTriangle size={13} />
-                        <span className="header-alert-label">
-                            {alert.type.replace(/_/g, ' ')}
-                        </span>
+                        <AlertTriangle size={15} className="header-alert-icon" />
+                        <div className="header-alert-body">
+                            <span className="header-alert-type">
+                                {alert.type.replace(/_/g, ' ')}
+                            </span>
+                            <span className="header-alert-message">{alert.message}</span>
+                            <span className="header-alert-time">{formatTime(alert.timestamp)}</span>
+                        </div>
                         <button
                             className="header-alert-close"
                             onClick={() => handleDismiss(alert.alert_id)}
                             aria-label="Dismiss alert"
                         >
-                            <XCircle size={13} />
+                            <XCircle size={14} />
                         </button>
                     </div>
                 ))}
