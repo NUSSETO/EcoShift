@@ -119,11 +119,19 @@ def generate_unified_json(df_latest, site_id="site_001"):
     }
     return output
 
+def calculate_fetch_limit():
+    """Fetch enough records to cover max(7 days, month-to-date) + 1 day buffer."""
+    from datetime import datetime, timezone
+    days_since_month_start = datetime.now(timezone.utc).day
+    days_needed = max(7, days_since_month_start) + 1
+    return days_needed * 48  # 48 half-hour periods per day
+
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    
-    logging.info("Fetching NESO Demand data")
-    df_neso = fetch_neso_demand(limit=336) # 7 days * 48 periods = 336
+
+    limit = calculate_fetch_limit()
+    logging.info(f"Fetching NESO Demand data (limit={limit})")
+    df_neso = fetch_neso_demand(limit=limit)
     
     if df_neso.empty:
         logging.error("Failed to fetch NESO data.")
