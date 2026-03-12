@@ -16,30 +16,44 @@ function prepareChartData(timeseries, metricType, unitPreference) {
 
     const divisor = unitPreference === 'large' ? 1000 : 1;
 
-    return timeseries.map(item => {
+    const points = timeseries.map(item => {
         const dt = new Date(item.timestamp);
-        
-        // Clean short X-axis label: if it's midnight, show the date, otherwise show just the time
+
         const isMidnight = dt.getHours() === 0 && dt.getMinutes() === 0;
-        const xAxisLabel = isMidnight 
+        const xAxisLabel = isMidnight
             ? dt.toLocaleDateString([], { month: 'short', day: 'numeric' })
             : dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-        // Full explicit timestamp for the hover tooltip context
         const fullDate = dt.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
         return {
-            timestamp: fullDate, // Used as the unique key and for the tooltip header internally if we didn't customize
+            timestamp: fullDate,
             xAxisLabel: xAxisLabel,
             fullDate: fullDate,
-            actual: item[metricType]?.actual ? item[metricType].actual / divisor : null,
-            predicted: item[metricType]?.predicted ? item[metricType].predicted / divisor : null,
-            _hoverTracker: (item[metricType]?.actual || item[metricType]?.predicted || 0) / divisor,
+            actual: item[metricType]?.actual != null ? item[metricType].actual / divisor : null,
+            predicted: item[metricType]?.predicted != null ? item[metricType].predicted / divisor : null,
+            _hoverTracker: ((item[metricType]?.actual ?? item[metricType]?.predicted) || 0) / divisor,
         };
     });
+
+    // Bridge the visual gap: at the transition point (last actual data point),
+    // set predicted = actual so the dashed line starts exactly where the solid
+    // line ends — eliminating the visual jump between actual and predicted.
+    let lastActualIdx = -1;
+    for (let i = points.length - 1; i >= 0; i--) {
+        if (points[i].actual != null) {
+            lastActualIdx = i;
+            break;
+        }
+    }
+    if (lastActualIdx >= 0) {
+        points[lastActualIdx].predicted = points[lastActualIdx].actual;
+    }
+
+    return points;
 }
 
-const CustomTooltip = ({ active, payload, label }) => {
+function CustomTooltip({ active, payload, unitLabel }) {
     if (active && payload && payload.length) {
         return (
             <div style={{ backgroundColor: 'rgba(11, 15, 25, 0.9)', border: '1px solid #2c3445', borderRadius: '8px', padding: '10px' }}>
@@ -48,7 +62,7 @@ const CustomTooltip = ({ active, payload, label }) => {
                     if (entry.dataKey === '_hoverTracker') return null;
                     return (
                         <p key={`item-${index}`} style={{ color: entry.color, margin: 0 }}>
-                            {entry.name}: {entry.value != null ? entry.value.toFixed(2) : 'N/A'}
+                            {entry.name}: {entry.value != null ? `${entry.value.toFixed(2)} ${unitLabel}` : 'N/A'}
                         </p>
                     );
                 })}
@@ -56,7 +70,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         );
     }
     return null;
-};
+}
 
 export default function OverlayChart({ data, metric }) {
     const { settings } = useSettings();
@@ -64,6 +78,11 @@ export default function OverlayChart({ data, metric }) {
 
     const divisor = settings.unitPreference === 'large' ? 1000 : 1;
     const alertThreshold = settings.thresholds[metric] / divisor;
+
+    // Unit label for tooltip
+    const unitLabel = metric === 'energy_draw'
+        ? (settings.unitPreference === 'large' ? 'MWh' : 'kWh')
+        : (settings.unitPreference === 'large' ? 'Tonnes' : 'kgCO2');
 
     // Choose colors based on the selected metric
     const actualColor = metric === 'energy_draw' ? '#00e1ff' : '#00ff88';
@@ -106,16 +125,18 @@ export default function OverlayChart({ data, metric }) {
                         tick={{ fill: '#8b949e' }}
                         axisLine={false}
                         tickLine={false}
+                        tickFormatter={(val) => `${val}`}
+                        label={{ value: unitLabel, angle: -90, position: 'insideLeft', fill: '#8b949e', fontSize: 12, dx: -5 }}
                     />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<CustomTooltip unitLabel={unitLabel} />} />
                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
 
                     {/* Threshold Line */}
-                    <ReferenceLine 
-                        y={alertThreshold} 
-                        label={{ position: 'top', value: 'Threshold', fill: '#ff3366', fontSize: 12 }} 
-                        stroke="#ff3366" 
-                        strokeDasharray="3 3" 
+                    <ReferenceLine
+                        y={alertThreshold}
+                        label={{ position: 'top', value: 'Threshold', fill: '#ff3366', fontSize: 12 }}
+                        stroke="#ff3366"
+                        strokeDasharray="3 3"
                         strokeWidth={2}
                     />
 

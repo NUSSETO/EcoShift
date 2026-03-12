@@ -24,7 +24,7 @@ export default function AlertPanel({ alerts, mode = 'default' }) {
         ' · ' +
         new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    /* ── Inline header cards — full detail, horizontal layout ── */
+    /* ── Inline header cards — compact single-row layout ── */
     if (mode === 'header') {
         return (
             <div className="header-alert-panel">
@@ -33,20 +33,17 @@ export default function AlertPanel({ alerts, mode = 'default' }) {
                         key={alert.alert_id}
                         className={`header-alert-card ${alert.severity === 'CRITICAL' ? 'critical' : 'warning'}`}
                     >
-                        <AlertTriangle size={15} className="header-alert-icon" />
-                        <div className="header-alert-body">
-                            <span className="header-alert-type">
-                                {alert.type.replace(/_/g, ' ')}
-                            </span>
-                            <span className="header-alert-message">{alert.message}</span>
-                            <span className="header-alert-time">{formatTime(alert.timestamp)}</span>
-                        </div>
+                        <AlertTriangle size={13} className="header-alert-icon" />
+                        <span className="header-alert-type">{alert.type.replace(/_/g, ' ')}</span>
+                        <span className="header-alert-sep">—</span>
+                        <span className="header-alert-message">{alert.message}</span>
+                        <span className="header-alert-time">{formatTime(alert.timestamp)}</span>
                         <button
                             className="header-alert-close"
                             onClick={() => handleDismiss(alert.alert_id)}
                             aria-label="Dismiss alert"
                         >
-                            <XCircle size={14} />
+                            <XCircle size={13} />
                         </button>
                     </div>
                 ))}

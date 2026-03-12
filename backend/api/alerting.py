@@ -8,8 +8,8 @@ def evaluate_thresholds(actual_data_point: dict) -> list:
     """
     alerts = []
     
-    max_carbon = float(os.getenv("MAX_CARBON_EMISSIONS", "150.0"))
-    max_grid_draw = float(os.getenv("PEAK_GRID_DRAW", "250.0"))
+    max_carbon = float(os.getenv("MAX_CARBON_EMISSIONS", "60.0"))
+    max_grid_draw = float(os.getenv("PEAK_GRID_DRAW", "300.0"))
     
     timestamp = actual_data_point.get("timestamp")
     

@@ -104,20 +104,36 @@ class EnergyForecaster:
                 }
             })
             
-        # Active Alerts
+        # Active Alerts — use same defaults as api/alerting.py
+        import os as _os
+        _max_grid = float(_os.getenv("PEAK_GRID_DRAW", "300.0"))
+        _max_carbon = float(_os.getenv("MAX_CARBON_EMISSIONS", "60.0"))
+
         active_alerts = []
         for ts_data in timeseries:
             p_energy = ts_data["energy_draw"]["predicted"]
-            if p_energy is not None and p_energy > 250.0:
+            if p_energy is not None and p_energy > _max_grid:
                 ts_clean = ts_data['timestamp'].replace('-','').replace(':','').replace('T','').replace('Z','')
                 active_alerts.append({
                     "alert_id": f"alt_{ts_clean}",
                     "timestamp": ts_data['timestamp'],
                     "type": "PEAK_GRID_DRAW",
                     "severity": "CRITICAL",
-                    "threshold_value": 250.0,
+                    "threshold_value": _max_grid,
                     "triggered_value": p_energy,
-                    "message": "Peak grid draw exceeded the 250 kWh maximum threshold."
+                    "message": f"Peak grid draw exceeded the {_max_grid} kWh maximum threshold."
+                })
+            p_carbon = ts_data["carbon_emissions"]["predicted"]
+            if p_carbon is not None and p_carbon > _max_carbon:
+                ts_clean = ts_data['timestamp'].replace('-','').replace(':','').replace('T','').replace('Z','')
+                active_alerts.append({
+                    "alert_id": f"alt_co2_{ts_clean}",
+                    "timestamp": ts_data['timestamp'],
+                    "type": "HIGH_CARBON_EMISSIONS",
+                    "severity": "CRITICAL",
+                    "threshold_value": _max_carbon,
+                    "triggered_value": p_carbon,
+                    "message": f"Carbon emissions exceeded the {_max_carbon} kgCO2 threshold."
                 })
                 
         schema_output = {

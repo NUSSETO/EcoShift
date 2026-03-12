@@ -16,8 +16,8 @@ export function SettingsProvider({ children }) {
         return {
             unitPreference: 'standard', // 'standard' or 'large'
             thresholds: {
-                energy_draw: 1000,
-                carbon_emissions: 500
+                energy_draw: 300,       // kWh — matches backend PEAK_GRID_DRAW default
+                carbon_emissions: 60    // kgCO2 — matches backend MAX_CARBON_EMISSIONS default
             }
         };
     };

@@ -124,7 +124,7 @@ function App() {
                 <div className={`chart-container glass-panel ${isExceeded ? 'critical-glow' : ''}`}>
                   <div className="chart-header">
                     <h2>{metric === 'energy_draw' ? 'Energy Draw' : 'Carbon Emissions'} {settings.unitPreference === 'large' ? (metric === 'energy_draw' ? '(MWh)' : '(Tonnes)') : (metric === 'energy_draw' ? '(kWh)' : '(kgCO2)')}</h2>
-                    <span className="info-tooltip" title="Displays actual energy consumption or carbon emissions from the facility compared to the Machine Learning 24-hour forecast. Solid lines represent observed actuals. Dashed lines project the ML forecasts.">?</span>
+                    <span className="info-tooltip" data-tip="Solid lines show observed actuals. Dashed lines show the ML 24-hour forecast. Hover any point for exact values.">?</span>
                   </div>
                   
                   {/* Wrapping chart to overlay local loader */}
