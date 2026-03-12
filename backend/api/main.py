@@ -1,3 +1,16 @@
+"""
+EcoShift API — FastAPI backend serving timeseries data, ML forecasts, and CSV reports.
+
+Endpoints:
+    GET /health                      Service readiness (data + model status)
+    GET /api/v1/metrics/timeseries   Actuals + 24h ML forecast + alerts (cached 5 min)
+    GET /api/v1/metrics/report       CSV export (timeseries / summary / forecast / alerts)
+
+Background tasks:
+    - Hourly data refresh (NESO + Carbon Intensity re-ingestion)
+    - Weekly model retraining (every 7th refresh cycle)
+"""
+
 import asyncio
 import sys
 from fastapi import FastAPI
@@ -7,7 +20,7 @@ from ml.ml_forecast import EnergyForecaster
 
 app = FastAPI(title="EcoShift API")
 
-# Load model lazily
+# Lazy-loaded ML model — rebuilt on retrain, force-reloaded by setting to None
 MODEL_FILE = Path(__file__).parent.parent / "ml" / "forecaster.pkl"
 forecaster = None
 
@@ -210,49 +223,178 @@ import io
 import csv
 from datetime import datetime
 
-@app.get("/api/v1/metrics/report")
-def generate_report(format: str = "csv"):
-    """
-    Generates a CSV report of the time-series data.
-    """
-    if format != "csv":
-        return {"error": "Only CSV format is supported at this time."}
-
-    data = get_metrics_timeseries("24H")  # Or could take range parameter for report too
-    if "error" in data:
-        return data
-
-    timeseries = data.get("timeseries", [])
-    
+def _build_timeseries_csv(timeseries: list) -> str:
+    """Raw timeseries: one row per hour, actuals + predictions."""
     output = io.StringIO()
     writer = csv.writer(output)
-    
-    # Write header
     writer.writerow([
         "Timestamp",
         "Energy Draw Actual (kWh)",
         "Energy Draw Predicted (kWh)",
         "Carbon Emissions Actual (kgCO2)",
-        "Carbon Emissions Predicted (kgCO2)"
+        "Carbon Emissions Predicted (kgCO2)",
     ])
-    
-    # Write rows
     for row in timeseries:
         writer.writerow([
             row.get("timestamp", ""),
             row.get("energy_draw", {}).get("actual", ""),
             row.get("energy_draw", {}).get("predicted", ""),
             row.get("carbon_emissions", {}).get("actual", ""),
-            row.get("carbon_emissions", {}).get("predicted", "")
+            row.get("carbon_emissions", {}).get("predicted", ""),
         ])
-        
-    output.seek(0)
-    
-    timestamp_str = datetime.now().strftime("%Y-%m-%d")
-    filename = f"EcoShift_Report_{timestamp_str}.csv"
-    
-    headers = {
-        "Content-Disposition": f"attachment; filename={filename}"
-    }
-    
-    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers=headers)
+    return output.getvalue()
+
+
+def _build_summary_csv(timeseries: list) -> str:
+    """Daily summary: one row per calendar day with total, peak, and average."""
+    import collections
+    days: dict = collections.defaultdict(lambda: {
+        "energy_actuals": [], "carbon_actuals": []
+    })
+    for row in timeseries:
+        ts = row.get("timestamp", "")
+        if not ts:
+            continue
+        day = ts[:10]  # "YYYY-MM-DD"
+        e_actual = row.get("energy_draw", {}).get("actual")
+        c_actual = row.get("carbon_emissions", {}).get("actual")
+        if e_actual is not None:
+            days[day]["energy_actuals"].append(e_actual)
+        if c_actual is not None:
+            days[day]["carbon_actuals"].append(c_actual)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Date",
+        "Total Energy Draw (kWh)",
+        "Peak Energy Draw (kWh)",
+        "Avg Hourly Energy Draw (kWh)",
+        "Total Carbon Emissions (kgCO2)",
+        "Peak Carbon Emissions (kgCO2)",
+        "Avg Hourly Carbon Emissions (kgCO2)",
+    ])
+    for day in sorted(days.keys()):
+        e = days[day]["energy_actuals"]
+        c = days[day]["carbon_actuals"]
+        writer.writerow([
+            day,
+            round(sum(e), 2) if e else "",
+            round(max(e), 2) if e else "",
+            round(sum(e) / len(e), 2) if e else "",
+            round(sum(c), 2) if c else "",
+            round(max(c), 2) if c else "",
+            round(sum(c) / len(c), 2) if c else "",
+        ])
+    return output.getvalue()
+
+
+def _build_forecast_csv(timeseries: list) -> str:
+    """24-hour ML forecast: future-only predicted rows."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Forecast Timestamp",
+        "Predicted Energy Draw (kWh)",
+        "Predicted Carbon Emissions (kgCO2)",
+    ])
+    for row in timeseries:
+        e = row.get("energy_draw", {})
+        c = row.get("carbon_emissions", {})
+        # Future-only: no actual value recorded
+        if e.get("actual") is None and e.get("predicted") is not None:
+            writer.writerow([
+                row.get("timestamp", ""),
+                e.get("predicted", ""),
+                c.get("predicted", ""),
+            ])
+    return output.getvalue()
+
+
+def _build_alerts_csv(timeseries: list, energy_threshold: float = 300.0, carbon_threshold: float = 60.0) -> str:
+    """Alert history: every hour where an actual reading breached a threshold."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Timestamp",
+        "Alert Type",
+        "Metric",
+        "Actual Value",
+        "Threshold",
+        "Excess",
+    ])
+    for row in timeseries:
+        ts = row.get("timestamp", "")
+        e_actual = row.get("energy_draw", {}).get("actual")
+        c_actual = row.get("carbon_emissions", {}).get("actual")
+        if e_actual is not None and e_actual > energy_threshold:
+            writer.writerow([
+                ts,
+                "PEAK_GRID_DRAW",
+                "Energy Draw (kWh)",
+                round(e_actual, 2),
+                energy_threshold,
+                round(e_actual - energy_threshold, 2),
+            ])
+        if c_actual is not None and c_actual > carbon_threshold:
+            writer.writerow([
+                ts,
+                "HIGH_CARBON_EMISSIONS",
+                "Carbon Emissions (kgCO2)",
+                round(c_actual, 2),
+                carbon_threshold,
+                round(c_actual - carbon_threshold, 2),
+            ])
+    return output.getvalue()
+
+
+@app.get("/api/v1/metrics/report")
+def generate_report(
+    type: str = "timeseries",
+    range: str = "24H",
+    energy_threshold: float = 300.0,
+    carbon_threshold: float = 60.0,
+):
+    """
+    Generates a CSV report.
+
+    type:
+      - timeseries  — hourly actuals + ML predictions  (range: 24H / 7D / MTD)
+      - summary     — daily aggregates (total, peak, avg)  (range: 7D / MTD)
+      - forecast    — 24-hour ML-only future predictions
+      - alerts      — historical threshold breaches  (range: 24H / 7D / MTD)
+
+    range: 24H | 7D | MTD  (ignored for forecast type)
+    """
+    valid_types = {"timeseries", "summary", "forecast", "alerts"}
+    if type not in valid_types:
+        return {"error": f"Unknown report type '{type}'. Valid: {sorted(valid_types)}"}
+
+    # Forecast always uses 24H window (future-only rows, range irrelevant)
+    fetch_range = "24H" if type == "forecast" else range
+
+    data = get_metrics_timeseries(fetch_range)
+    if "error" in data:
+        return data
+
+    timeseries = data.get("timeseries", [])
+
+    if type == "timeseries":
+        csv_content = _build_timeseries_csv(timeseries)
+        type_label = "Timeseries"
+    elif type == "summary":
+        csv_content = _build_summary_csv(timeseries)
+        type_label = "DailySummary"
+    elif type == "forecast":
+        csv_content = _build_forecast_csv(timeseries)
+        type_label = "Forecast"
+    else:  # alerts
+        csv_content = _build_alerts_csv(timeseries, energy_threshold, carbon_threshold)
+        type_label = "AlertHistory"
+
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    range_label = "" if type == "forecast" else f"_{range}"
+    filename = f"EcoShift_{type_label}{range_label}_{date_str}.csv"
+
+    headers = {"Content-Disposition": f"attachment; filename={filename}"}
+    return StreamingResponse(iter([csv_content]), media_type="text/csv", headers=headers)

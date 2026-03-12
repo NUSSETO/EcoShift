@@ -2,17 +2,22 @@ import { test, expect } from '@playwright/test';
 
 test('Verify Data Source text and Filtering functionality', async ({ page }) => {
   // Wait for the backend process and frontend dev process to be fully up
-  await page.goto('http://localhost:5173');
+  await page.goto('http://localhost:3000');
 
-  // Verify True Data Source String
+  // Verify footer data-source attribution (visible on Reports/About pages)
+  // From Dashboard, switch to Reports to reveal the footer
+  await page.locator('a', { hasText: 'Reports' }).click();
   const footerText = await page.locator('footer.dashboard-footer p').textContent();
-  expect(footerText).toContain('Data powered by Static Demonstration Dataset.');
+  expect(footerText).toContain('Data powered by NESO Demand & Carbon Intensity APIs.');
+
+  // Navigate back to Dashboard
+  await page.locator('a', { hasText: 'Dashboard' }).click();
 
   // Check that 24H is selected initially
   await page.waitForSelector('button:has-text("24H")');
   const btn24H = page.locator('button', { hasText: '24H' });
   await expect(btn24H).toHaveClass(/active/);
-  
+
   // Wait for the chart elements to be present
   await page.waitForSelector('.recharts-surface');
 
@@ -25,6 +30,6 @@ test('Verify Data Source text and Filtering functionality', async ({ page }) => 
   const btnMTD = page.locator('button', { hasText: 'MTD' });
   await btnMTD.click();
   await page.waitForTimeout(2000); // Give it a moment to fetch and render
-  
+
   console.log("Verified filters click correctly and data source text is updated.");
 });

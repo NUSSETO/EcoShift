@@ -1,5 +1,16 @@
+"""
+ML inference module — loads a trained XGBoost model and generates 24-hour
+energy + carbon forecasts from the most recent historical data.
+
+Key technique: level-correction bias anchoring.
+    After raw model prediction, the bias between the actual h=0 value and the
+    predicted h=0 value is computed. A linearly decaying correction is applied
+    (100% at h=0, 0% at h=24) to anchor the forecast to current reality
+    without retraining. This dramatically reduces the visual gap at the
+    actual-to-predicted transition.
+"""
+
 import pandas as pd
-import json
 from pathlib import Path
 import joblib
 

@@ -1,37 +1,57 @@
 # EcoShift Data Pipeline
 
 ## Overview
-This document explains the data ingestion pipeline for EcoShift, transitioning from synthetic data to real-world energy datasets. The pipeline fetches historical demand from the UK National Energy System Operator (NESO) and grid carbon intensity from the official UK Carbon Intensity API.
+
+The data ingestion pipeline fetches live data from two UK government APIs, merges and resamples them into a single hourly Parquet file, which is then used by the ML model and the FastAPI backend.
 
 ## Data Sources
-1.  **National Grid ESO (NESO)**:
-    *   **Dataset**: Historic Demand Data
-    *   **Metric**: National Demand (`ND`) in MW
-    *   **Interval**: 30 minutes
-    *   **Normalization**: Since this is national-level data (often around 20,000 to 40,000 MW), we scale it down by a factor of `0.00001` to simulate a single industrial site (`site_001`). `30,000 MW * 0.00001 = 0.3 MW = 300 kW`.
 
-2.  **UK Carbon Intensity API**:
-    *   **Metric**: Grid Carbon Intensity in `gCO2/kWh`
-    *   **Interval**: 30 minutes
-    *   **Matching**: The carbon data is fetched specifically for the exact timeframe that the NESO dataset covers, ensuring alignment even when NESO data is delayed by several weeks.
+1. **National Grid ESO (NESO)**
+   - **Dataset**: Historic Demand Data (resource `177f6fa4`)
+   - **Metric**: National Demand (`ND`) in MW
+   - **Interval**: 30-minute settlement periods
+   - **Lag**: Data typically arrives **24-28 hours** behind real time
+   - **Normalization**: National demand is scaled by `0.00001` to simulate a single site. For example, `30,000 MW * 0.00001 = 0.3 MW = 300 kW`. Since the data is resampled to 1-hour intervals, kW = kWh.
 
-## ETL Process (`data_ingest.py`)
-1.  **Extract**: Connect to both APIs and download the last 7 days of available NESO data, alongside corresponding Carbon Intensity Data.
-2.  **Transform**:
-    *   Parsed the timestamps to ensure timezone-awareness (UTC).
-    *   Merge the datasets on their timestamp index through an inner join.
-    *   Resample down to 1-hour intervals (mean averaging).
-    *   Calculate `energy_draw_kwh` by scaling the demand.
-    *   Calculate `carbon_emissions_kg` using `(energy_draw_kwh * intensity) / 1000`.
-3.  **Load**:
-    *   Save the fully cleaned hourly timeseries to `data/historical_data.parquet` for Machine Learning usage.
-    *   Format the ultimate 24 hours into the mandated **Unified JSON Schema** and save it to `data/latest_data.json`.
+2. **UK Carbon Intensity API**
+   - **Metric**: Grid carbon intensity in `gCO2/kWh`
+   - **Interval**: 30 minutes
+   - **Matching**: Carbon data is fetched for the exact timeframe that NESO data covers, ensuring alignment even when NESO data is delayed.
 
-## Automation
-The pipeline is fully automated using a cron job.
-*   **Script**: `cron_pipeline.sh`
-*   **Setup**:
-    To run this script automatically every day at 1 AM, add the following line to your crontab (`crontab -e`):
-    ```bash
-    0 1 * * * /Users/seto-macair/Desktop/MyWork/Code/Super_Agent_Test/cron_pipeline.sh >> /tmp/ecoshift_cron.log 2>&1
-    ```
+## ETL Process (`backend/data/data_ingest.py`)
+
+1. **Extract**: Fetch data from both APIs. The fetch limit is calculated dynamically to cover `max(7 days, month-to-date) + 1 day buffer`. Retries up to 3 times on failure.
+2. **Transform**:
+   - Parse timestamps to UTC-aware datetime
+   - Inner join on timestamp index
+   - Fill missing carbon actuals with forecast values
+   - Resample to 1-hour intervals (mean)
+   - Derive `energy_draw_kwh` from scaled national demand
+   - Derive `carbon_emissions_kg` from `energy_draw_kwh * intensity / 1000`
+3. **Load**: Save to `backend/data/historical_data.parquet`
+
+## Refresh Mechanisms
+
+### Background Refresh (Production)
+
+The FastAPI backend runs a background task (`refresh_data_periodically` in `main.py`) that:
+- Re-ingests data every **1 hour**
+- Retrains the ML model every **7th refresh** (~weekly)
+- Can be disabled with `DISABLE_BACKGROUND_REFRESH=1`
+
+### Cron Job (Optional)
+
+For standalone ingestion outside the API process:
+
+```bash
+# cron_pipeline.sh — runs data_ingest.py from the backend directory
+0 1 * * * /path/to/EcoShift/cron_pipeline.sh >> /tmp/ecoshift_cron.log 2>&1
+```
+
+### Build-time Bootstrap (Render Deploy)
+
+On Render, the filesystem is ephemeral. The `buildCommand` in `render.yaml` runs both ingestion and training on every deploy:
+
+```yaml
+buildCommand: "pip install -r requirements.txt && python data/data_ingest.py && python ml/train_model.py"
+```

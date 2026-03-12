@@ -1,3 +1,16 @@
+"""
+XGBoost model training pipeline for EcoShift energy and carbon forecasting.
+
+Reads historical_data.parquet, engineers 17 features (temporal + lag + rolling),
+trains a MultiOutputRegressor(XGBRegressor) to predict both energy_draw and
+carbon_emissions simultaneously, and saves the artifact as forecaster.pkl.
+
+Features (17):
+    Temporal: hour, dayofweek, month
+    Lag:      1h, 6h, 24h, 48h  (x2 metrics = 8)
+    Rolling:  6h, 12h, 24h mean  (x2 metrics = 6)
+"""
+
 import pandas as pd
 import numpy as np
 from pathlib import Path

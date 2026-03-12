@@ -1,3 +1,15 @@
+"""
+Data ingestion pipeline — fetches live data from two UK government APIs and
+merges them into a single hourly Parquet file for the ML model and API layer.
+
+Sources:
+    1. NESO National Grid (resource 177f6fa4) — half-hourly national electricity demand
+    2. Carbon Intensity API — half-hourly grid carbon intensity (gCO2/kWh)
+
+Output:
+    backend/data/historical_data.parquet  (columns: energy_draw_kwh, carbon_emissions_kg)
+"""
+
 import os
 import logging
 import time

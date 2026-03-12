@@ -1,3 +1,15 @@
+"""
+Backend threshold evaluation for the /timeseries endpoint.
+
+Note: The primary alert system runs client-side in App.jsx for instant
+reactivity to Settings changes. This module provides server-side alerts
+appended to the API response for completeness.
+
+Thresholds are configurable via environment variables:
+    PEAK_GRID_DRAW       (default 300.0 kWh)
+    MAX_CARBON_EMISSIONS (default 60.0 kgCO2)
+"""
+
 import os
 import uuid
 from datetime import datetime, timezone

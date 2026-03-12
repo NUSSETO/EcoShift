@@ -21,11 +21,11 @@ async def test_non_blocking():
         # Give it a tiny moment to start processing
         await asyncio.sleep(0.01)
         
-        # Now rapidly fire 5 requests to the lightweight /api/summary endpoint
+        # Now rapidly fire 5 requests to the lightweight /health endpoint
         # If the inference is blocking the event loop (e.g. CPU-bound and synchronous), 
         # these requests will queue up behind it and take a long time to return.
         lightweight_tasks = [
-            fetch("http://127.0.0.1:8000/api/summary", client) for _ in range(5)
+            fetch("http://127.0.0.1:8000/health", client) for _ in range(5)
         ]
         
         light_results = await asyncio.gather(*lightweight_tasks)
@@ -35,13 +35,13 @@ async def test_non_blocking():
     
     blocked = False
     for i, (status, t) in enumerate(light_results):
-        print(f"Lightweight Request {i+1} (/api/summary): {status} - {t:.4f}s")
+        print(f"Lightweight Request {i+1} (/health): {status} - {t:.4f}s")
         # If a lightweight request takes more than 50ms, it's likely being blocked by the event loop
         if t > 0.1:
             blocked = True
             
     if blocked:
-        print("WARNING: ML inference appears to be BLOCKING the event loop! Requests to /api/summary took too long.")
+        print("WARNING: ML inference appears to be BLOCKING the event loop! Requests to /health took too long.")
     else:
         print("SUCCESS: ML inference is NOT blocking the event loop.")
 

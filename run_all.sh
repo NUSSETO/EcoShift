@@ -27,13 +27,13 @@ echo "-> Installing Frontend dependencies..."
 cd ../frontend
 npm install
 
-echo "-> Starting Vite Frontend..."
-npm run dev &
+echo "-> Starting Vite Frontend on port 3000..."
+npm run dev -- --port 3000 &
 FRONTEND_PID=$!
 
 echo "Both Backend and Frontend are running!"
 echo "Backend: http://localhost:8000"
-echo "Frontend: http://localhost:5173"
+echo "Frontend: http://localhost:3000"
 echo "Press Ctrl+C to stop both."
 
 # Function to clean up background processes on script exit

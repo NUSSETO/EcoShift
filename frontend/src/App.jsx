@@ -6,16 +6,21 @@ import Controls from './components/Controls';
 import OverlayChart from './components/OverlayChart';
 import SettingsModal from './components/SettingsModal';
 import Reports from './components/Reports';
+import About from './components/About';
 import { Loader2 } from 'lucide-react';
 import './index.css';
 
 /**
- * Main App Component for the EcoShift Dashboard.
- * 
+ * Root layout and state manager for the EcoShift dashboard.
+ *
  * Responsibilities:
- * - Fetches timeseries data and active alerts from the backend API.
- * - Manages global UI state (selected time range, active metric to display).
- * - Renders the main dashboard layout, including the sidebar, header, AlertPanel, Controls, and OverlayChart.
+ *   - Fetches timeseries data via useData hook (auto-refreshes every 60s).
+ *   - Evaluates threshold alerts **client-side** (instant reaction to Settings
+ *     changes, no network round-trip). The 24H scan window is anchored to the
+ *     latest actual data timestamp — not Date.now() — because NESO data lags
+ *     24-28 hours behind real time.
+ *   - Manages tab routing: Dashboard | Reports | About (+ Settings modal).
+ *   - Renders the 3-column header grid: Logo | Alert cards | Live status.
  */
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -136,6 +141,9 @@ function App() {
           </ul>
           <div className="sidebar-bottom">
             <ul className="nav-links">
+              <li className={activeTab === 'about' ? 'active' : ''}>
+                <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('about'); }}>About</a>
+              </li>
               <li><a href="#" onClick={(e) => { e.preventDefault(); setIsSettingsOpen(true); }}>Settings</a></li>
             </ul>
           </div>
@@ -177,16 +185,18 @@ function App() {
                 </div>
               </section>
             </>
-          ) : (
+          ) : activeTab === 'reports' ? (
              <Reports />
-          )}
+          ) : activeTab === 'about' ? (
+             <About />
+          ) : null}
 
           <SettingsModal
             isOpen={isSettingsOpen}
             onClose={() => setIsSettingsOpen(false)}
           />
 
-          {activeTab !== 'dashboard' && (
+          {(activeTab === 'reports' || activeTab === 'about') && (
             <footer className="dashboard-footer">
               <p>Data powered by NESO Demand &amp; Carbon Intensity APIs. ML forecasts are estimates only.</p>
             </footer>
