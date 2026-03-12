@@ -74,15 +74,18 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* Top Bar Navigation */}
+      {/* Top Bar Navigation — Logo | Alerts (center) | Status */}
       <header className="dashboard-header">
         <div className="header-brand">
           <h2>EcoShift</h2>
           <p className="brand-subtitle">Energy & Emissions Tracker</p>
         </div>
+        <div className="header-alerts-slot">
+          <AlertPanel alerts={[...(data?.active_alerts || []), ...dynamicAlerts]} mode="header" />
+        </div>
         <div className="status-indicator">
           <span className="pulse-dot"></span>
-          <span>Status: Connected (Live Integration)</span>
+          <span>Live Integration</span>
         </div>
       </header>
 
@@ -108,8 +111,6 @@ function App() {
           <main className="dashboard-container">
           {activeTab === 'dashboard' ? (
             <>
-              <AlertPanel alerts={[...(data?.active_alerts || []), ...dynamicAlerts]} />
-
               <section className="controls-section">
                 <Controls
                   timeRange={timeRange}
@@ -146,14 +147,16 @@ function App() {
              <Reports />
           )}
 
-          <SettingsModal 
-            isOpen={isSettingsOpen} 
-            onClose={() => setIsSettingsOpen(false)} 
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
           />
 
-          <footer className="dashboard-footer">
-            <p>Data powered by NESO Demand & Carbon Intensity APIs. ML forecasts are estimates only.</p>
-          </footer>
+          {activeTab !== 'dashboard' && (
+            <footer className="dashboard-footer">
+              <p>Data powered by NESO Demand &amp; Carbon Intensity APIs. ML forecasts are estimates only.</p>
+            </footer>
+          )}
         </main>
         </div>
       </div>
