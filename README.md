@@ -2,6 +2,8 @@
 
 **Real-time UK Energy & Carbon Emissions Dashboard**
 
+🌐 **Live demo**: [https://ecoshift-frontend.netlify.app](https://ecoshift-frontend.netlify.app)
+
 EcoShift monitors UK national electricity grid demand and carbon intensity in real time. It pairs live government data with a 24-hour XGBoost ML forecast, configurable threshold alerts, and downloadable CSV reports — all presented through a dark-themed React dashboard.
 
 ---
@@ -23,7 +25,7 @@ frontend/          React 18 + Vite SPA
     context/
       SettingsContext.jsx  Persisted settings (localStorage)
 
-backend/           Python 3.10 — FastAPI
+backend/           Python 3.11 — FastAPI
   api/
     main.py            API endpoints, in-memory cache, background refresh
     alerting.py        Threshold evaluation (env-configurable)
@@ -124,7 +126,7 @@ Alerts are evaluated **entirely client-side** in `App.jsx`. This ensures they re
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - Node.js 18+
 
 ### Quick Start
@@ -170,18 +172,39 @@ npm run dev -- --port 3000
 
 ### Backend -> Render
 
-Configured via `render.yaml`. The `buildCommand` runs data ingestion and model training on each deploy (Render's filesystem is ephemeral, so `.parquet` and `.pkl` must be rebuilt).
+`render.yaml` documents the intended config, but for an **existing Render service** the dashboard settings take precedence — set these manually:
 
-```yaml
-buildCommand: "pip install -r requirements.txt && python data/data_ingest.py && python ml/train_model.py"
-startCommand: "uvicorn api.main:app --host 0.0.0.0 --port $PORT"
-```
+| Setting | Value |
+|---------|-------|
+| Root Directory | *(blank)* |
+| Build Command | `cd backend && pip install -r requirements.txt && python data/data_ingest.py && python ml/train_model.py` |
+| Start Command | `cd backend && uvicorn api.main:app --host 0.0.0.0 --port $PORT` |
+
+**Environment variables** (set in Render dashboard):
+
+| Variable | Value |
+|----------|-------|
+| `PYTHON_VERSION` | `3.11.0` |
+| `ALLOWED_ORIGINS` | `https://ecoshift-frontend.netlify.app` |
+| `PEAK_GRID_DRAW` | `250.0` |
+| `MAX_CARBON_EMISSIONS` | `150.0` |
+
+`runtime.txt` at the repo root also pins Python to 3.11 as a fallback.
+
+The build runs data ingestion and model training on each deploy — Render's filesystem is ephemeral so `.parquet` and `.pkl` are always rebuilt fresh.
 
 ### Frontend -> Netlify
 
-- **Build command**: `npm run build`
-- **Publish directory**: `dist`
-- **Environment**: Set `VITE_API_URL` to the live Render backend URL.
+`netlify.toml` at the repo root handles all build config automatically when connected to GitHub:
+
+```toml
+[build]
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
+```
+
+`frontend/.env.production` sets `VITE_API_URL` to the live Render backend URL — update this if your Render service URL changes.
 
 ---
 
@@ -227,6 +250,8 @@ EcoShift/
 │   ├── e2e_frontend.spec.js     # Playwright E2E
 │   ├── test_performance.py      # Async non-blocking test
 │   └── playwright.config.js
-├── render.yaml                  # Render IaC deployment config
+├── render.yaml                  # Render deployment config reference
+├── netlify.toml                 # Netlify build config (base/command/publish)
+├── runtime.txt                  # Pins Python 3.11 for Render
 └── README.md
 ```
