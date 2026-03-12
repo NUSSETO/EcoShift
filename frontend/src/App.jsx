@@ -30,19 +30,29 @@ function App() {
   // ── Alert evaluation ──────────────────────────────────────────────────────
   // Alerts are computed entirely client-side from user-configured thresholds
   // so they react instantly to Settings changes without a network round-trip.
-  // Only data points within the last 24 hours are considered, regardless of
-  // which time range tab the user has selected.
+  // We evaluate the most recent 24H of available actual data.
+  // NOTE: NESO data can lag 24-28h behind real-time, so we anchor the 24H
+  // window to the LATEST actual timestamp in the dataset — not Date.now().
   const currentThreshold = settings.thresholds[metric];
   let isExceeded = false;
   const activeAlerts = [];
 
   if (data?.timeseries && data.timeseries.length > 0) {
-    const cutoff24H = Date.now() - 24 * 60 * 60 * 1000;
+    // Find the most recent actual data point timestamp in the dataset
+    const latestActualMs = data.timeseries.reduce((max, item) => {
+      const hasActual = item.energy_draw?.actual != null || item.carbon_emissions?.actual != null;
+      if (!hasActual) return max;
+      const t = new Date(item.timestamp).getTime();
+      return t > max ? t : max;
+    }, 0);
 
-    // Actuals within the last 24H window
+    // 24H window anchored to the latest actual (not wall-clock time)
+    const cutoff24H = latestActualMs - 24 * 60 * 60 * 1000;
+
+    // Actuals within the last 24H of available data
     const recent24H = data.timeseries.filter(item => {
       const ts = new Date(item.timestamp).getTime();
-      return ts >= cutoff24H && (
+      return ts >= cutoff24H && ts <= latestActualMs && (
         item.energy_draw?.actual != null ||
         item.carbon_emissions?.actual != null
       );
