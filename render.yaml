@@ -3,7 +3,7 @@ services:
     name: ecoshift-api
     env: python
     rootDir: backend
-    buildCommand: "pip install -r requirements.txt && python data/data_ingest.py && python ml/train_model.py"
+    buildCommand: "pip install --prefer-binary -r requirements.txt && python data/data_ingest.py && python ml/train_model.py"
     startCommand: "uvicorn api.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PORT
