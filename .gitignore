@@ -36,5 +36,9 @@ env/
 *.parquet
 *.pkl
 
+# Test results
+frontend/test-results/
+tests/test-results/
+
 # Claude Code
 .claude/
