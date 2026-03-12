@@ -35,7 +35,6 @@ env/
 # Generated data & model artifacts
 *.parquet
 *.pkl
-backend/data/latest_data.json
 
 # Claude Code
 .claude/

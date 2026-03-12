@@ -7,7 +7,7 @@ export default defineConfig({
     fullyParallel: false,
     retries: 0,
     use: {
-        baseURL: 'http://localhost:5173',
+        baseURL: 'http://localhost:3000',
         trace: 'on-first-retry',
     },
     projects: [
@@ -18,15 +18,15 @@ export default defineConfig({
     ],
     webServer: [
         {
-            command: 'cd ../backend && DISABLE_BACKGROUND_REFRESH=1 uvicorn api.main:app --port 8000',
+            command: 'cd ../backend && uvicorn api.main:app --port 8000',
             port: 8000,
-            timeout: 10000,
+            timeout: 15000,
             reuseExistingServer: !process.env.CI,
         },
         {
-            command: 'cd ../frontend && npm run dev',
-            port: 5173,
-            timeout: 10000,
+            command: 'cd ../frontend && npm run dev -- --port 3000',
+            port: 3000,
+            timeout: 15000,
             reuseExistingServer: !process.env.CI,
         }
     ],

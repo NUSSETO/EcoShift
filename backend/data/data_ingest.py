@@ -1,5 +1,4 @@
 import os
-import json
 import logging
 import time
 from datetime import datetime, timedelta, timezone
@@ -24,7 +23,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Constants
 OUTPUT_DIR = "data"
 PARQUET_PATH = os.path.join(OUTPUT_DIR, "historical_data.parquet")
-JSON_PATH = os.path.join(OUTPUT_DIR, "latest_data.json")
 
 NESO_RESOURCE_ID = "177f6fa4-ae49-4182-81ea-0c6b35f26ca6" # Demand Data Update (live, daily updated)
 NESO_API_URL = "https://api.neso.energy/api/3/action/datastore_search"
@@ -90,46 +88,6 @@ def fetch_neso_demand(limit=500):
         # Sort index because _id desc means reverse chronological
         df_neso.sort_index(inplace=True)
     return df_neso
-
-def generate_unified_json(df_latest, site_id="site_001"):
-    # Just take the last 24 hours for JSON representation
-    df_recent = df_latest.tail(24)
-    
-    if df_recent.empty:
-        return {}
-    
-    start_time = df_recent.index.min().isoformat().replace("+00:00", "Z")
-    end_time = df_recent.index.max().isoformat().replace("+00:00", "Z")
-    
-    timeseries = []
-    for idx, row in df_recent.iterrows():
-        timeseries.append({
-            "timestamp": idx.isoformat().replace("+00:00", "Z"),
-            "energy_draw": {
-                "actual": round(row['energy_draw_kwh'], 2) if not pd.isna(row['energy_draw_kwh']) else None,
-                "predicted": None # ML will fill this later
-            },
-            "carbon_emissions": {
-                "actual": round(row['carbon_emissions_kg'], 2) if not pd.isna(row['carbon_emissions_kg']) else None,
-                "predicted": None
-            }
-        })
-        
-    output = {
-        "metadata": {
-            "device_or_site_id": site_id,
-            "timezone": "UTC",
-            "range_start": start_time,
-            "range_end": end_time,
-            "units": {
-                "energy_draw": "kWh",
-                "carbon_emissions": "kgCO2"
-            }
-        },
-        "timeseries": timeseries,
-        "active_alerts": [] # Handled separately
-    }
-    return output
 
 def calculate_fetch_limit():
     """Fetch enough records to cover max(7 days, month-to-date) + 1 day buffer."""
@@ -209,12 +167,6 @@ def main():
     # Save to Parquet
     logging.info(f"Saving {len(df_final)} records to {PARQUET_PATH}")
     df_final.to_parquet(PARQUET_PATH)
-    
-    # Generate JSON and save
-    unified_json = generate_unified_json(df_final)
-    with open(JSON_PATH, 'w') as f:
-        json.dump(unified_json, f, indent=2)
-    logging.info(f"Saved latest JSON snapshot to {JSON_PATH}")
     
 if __name__ == "__main__":
     main()

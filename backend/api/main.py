@@ -1,4 +1,3 @@
-import json
 import asyncio
 import sys
 from fastapi import FastAPI
