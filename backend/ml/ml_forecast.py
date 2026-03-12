@@ -32,40 +32,80 @@ class EnergyForecaster:
                 df['carbon_emissions'] = df.get('grid_kwh', 0) * 0.45
                 
         last_time = df['datetime'].max()
-        
+
+        def lookup(target_dt):
+            """Return the row closest in time to target_dt (within 30 min), else last row."""
+            row = df[df['datetime'] == target_dt]
+            if not row.empty:
+                return row.iloc[0]
+            # nearest within 30 min
+            diff = (df['datetime'] - target_dt).abs()
+            if diff.min() <= pd.Timedelta(minutes=30):
+                return df.loc[diff.idxmin()]
+            return df.iloc[-1]  # final fallback
+
+        def rolling_mean(end_dt, window_hours):
+            start_dt = end_dt - pd.Timedelta(hours=window_hours - 1)
+            mask = (df['datetime'] >= start_dt) & (df['datetime'] <= end_dt)
+            subset = df[mask]
+            if subset.empty:
+                # fallback: tail of available data
+                subset = df.tail(window_hours)
+            return float(subset['energy_draw'].mean()), float(subset['carbon_emissions'].mean())
+
         feature_rows = []
-        # Predict for the current hour (0) and the next 24 hours (1 to 24)
         for h in range(0, 25):
             target_t = last_time + pd.Timedelta(hours=h)
-            lag_time = target_t - pd.Timedelta(hours=24)
-            
-            lag_row = df[df['datetime'] == lag_time]
-            if lag_row.empty:
-                lag_row = df.iloc[-1:] # Fallback
-                
-            lag_24_energy = lag_row['energy_draw'].values[0]
-            lag_24_carbon = lag_row['carbon_emissions'].values[0]
-            
-            # rolling 24 ending at lag_time
-            rolling_start = lag_time - pd.Timedelta(hours=23)
-            mask = (df['datetime'] >= rolling_start) & (df['datetime'] <= lag_time)
-            rolling_df = df[mask]
-            
-            roll_24_energy = rolling_df['energy_draw'].mean()
-            roll_24_carbon = rolling_df['carbon_emissions'].mean()
-            
+
+            r1   = lookup(target_t - pd.Timedelta(hours=1))
+            r6   = lookup(target_t - pd.Timedelta(hours=6))
+            r24  = lookup(target_t - pd.Timedelta(hours=24))
+            r48  = lookup(target_t - pd.Timedelta(hours=48))
+
+            roll6_e,  roll6_c  = rolling_mean(target_t - pd.Timedelta(hours=1),  6)
+            roll12_e, roll12_c = rolling_mean(target_t - pd.Timedelta(hours=1),  12)
+            roll24_e, roll24_c = rolling_mean(target_t - pd.Timedelta(hours=24), 24)
+
             feature_rows.append({
-                'hour': target_t.hour,
-                'dayofweek': target_t.dayofweek,
-                'lag_24_energy': lag_24_energy,
-                'lag_24_carbon': lag_24_carbon,
-                'rolling_24_energy': roll_24_energy,
-                'rolling_24_carbon': roll_24_carbon
+                'hour':             target_t.hour,
+                'dayofweek':        target_t.dayofweek,
+                'month':            target_t.month,
+                'lag_1_energy':     float(r1['energy_draw']),
+                'lag_1_carbon':     float(r1['carbon_emissions']),
+                'lag_6_energy':     float(r6['energy_draw']),
+                'lag_6_carbon':     float(r6['carbon_emissions']),
+                'lag_24_energy':    float(r24['energy_draw']),
+                'lag_24_carbon':    float(r24['carbon_emissions']),
+                'lag_48_energy':    float(r48['energy_draw']),
+                'lag_48_carbon':    float(r48['carbon_emissions']),
+                'rolling_6_energy':  roll6_e,
+                'rolling_6_carbon':  roll6_c,
+                'rolling_12_energy': roll12_e,
+                'rolling_12_carbon': roll12_c,
+                'rolling_24_energy': roll24_e,
+                'rolling_24_carbon': roll24_c,
             })
-            
+
         X_pred = pd.DataFrame(feature_rows)
         preds = self.model.predict(X_pred)
-        
+
+        # ── Level-correction bias anchoring ──────────────────────────────────
+        # The raw model prediction at h=0 often diverges from the latest actual
+        # value (e.g. seasonal shifts the model hasn't fully learned). We compute
+        # the bias = actual_h0 - predicted_h0 and apply a linearly decaying
+        # correction: full bias at h=0, zero correction by h=24.
+        # This anchors the forecast to current reality without retraining.
+        actual_h0_energy = float(df.iloc[-1]['energy_draw'])
+        actual_h0_carbon = float(df.iloc[-1]['carbon_emissions'])
+        energy_bias = actual_h0_energy - float(preds[0, 0])
+        carbon_bias = actual_h0_carbon - float(preds[0, 1])
+
+        HORIZON = 24
+        for i in range(len(preds)):
+            decay = max(0.0, (HORIZON - i) / HORIZON)
+            preds[i, 0] = max(0.0, preds[i, 0] + energy_bias * decay)
+            preds[i, 1] = max(0.0, preds[i, 1] + carbon_bias * decay)
+
         # Build JSON Schema Output
         device_id = "site_001"
         timezone = "UTC"

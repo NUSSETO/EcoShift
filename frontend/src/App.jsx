@@ -27,39 +27,63 @@ function App() {
   // Pass timeRange to hook
   const { data, loading, error } = useData(timeRange);
 
-  // Check if latest data exceeds threshold
+  // ── Alert evaluation ──────────────────────────────────────────────────────
+  // Alerts are computed entirely client-side from user-configured thresholds
+  // so they react instantly to Settings changes without a network round-trip.
+  // Only data points within the last 24 hours are considered, regardless of
+  // which time range tab the user has selected.
   const currentThreshold = settings.thresholds[metric];
   let isExceeded = false;
-  let dynamicAlerts = [];
+  const activeAlerts = [];
 
   if (data?.timeseries && data.timeseries.length > 0) {
-    // Find the latest entry that has actual recorded data (not future predictions)
-    const latestData = [...data.timeseries].reverse().find(item => item.energy_draw?.actual != null) || data.timeseries[data.timeseries.length - 1];
-    
-    // Check metric threshold for chart glow
-    if (latestData[metric]?.actual > currentThreshold) {
+    const cutoff24H = Date.now() - 24 * 60 * 60 * 1000;
+
+    // Actuals within the last 24H window
+    const recent24H = data.timeseries.filter(item => {
+      const ts = new Date(item.timestamp).getTime();
+      return ts >= cutoff24H && (
+        item.energy_draw?.actual != null ||
+        item.carbon_emissions?.actual != null
+      );
+    });
+
+    // Latest actual for chart-glow calculation
+    const latestActual = [...data.timeseries]
+      .reverse()
+      .find(item => item[metric]?.actual != null);
+    if (latestActual && latestActual[metric].actual > currentThreshold) {
       isExceeded = true;
     }
 
-    // Generate dynamic alerts based on global settings
-    if (latestData['energy_draw']?.actual > settings.thresholds.energy_draw) {
-        dynamicAlerts.push({
-            alert_id: `energy_draw_exceed_${latestData.timestamp}`,
-            type: 'HIGH_ENERGY_DRAW',
-            message: `Energy draw exceeded the ${settings.thresholds.energy_draw} ${settings.unitPreference === 'large' ? 'MWh' : 'kWh'} threshold.`,
-            timestamp: latestData.timestamp,
-            severity: 'CRITICAL'
-        });
+    // Energy threshold — find most recent breach in last 24H
+    const energyBreach = [...recent24H]
+      .reverse()
+      .find(item => (item.energy_draw?.actual ?? 0) > settings.thresholds.energy_draw);
+    if (energyBreach) {
+      const unit = settings.unitPreference === 'large' ? 'MWh' : 'kWh';
+      activeAlerts.push({
+        alert_id: `energy_draw_exceed_${energyBreach.timestamp}`,
+        type: 'PEAK_GRID_DRAW',
+        message: `Energy draw of ${energyBreach.energy_draw.actual} ${unit} exceeded the ${settings.thresholds.energy_draw} ${unit} threshold.`,
+        timestamp: energyBreach.timestamp,
+        severity: 'CRITICAL',
+      });
     }
 
-    if (latestData['carbon_emissions']?.actual > settings.thresholds.carbon_emissions) {
-        dynamicAlerts.push({
-            alert_id: `carbon_emissions_exceed_${latestData.timestamp}`,
-            type: 'HIGH_CARBON_EMISSIONS',
-            message: `Carbon emissions exceeded the ${settings.thresholds.carbon_emissions} ${settings.unitPreference === 'large' ? 'Tonnes CO2' : 'kgCO2'} threshold.`,
-            timestamp: latestData.timestamp,
-            severity: 'CRITICAL'
-        });
+    // Carbon threshold — find most recent breach in last 24H
+    const carbonBreach = [...recent24H]
+      .reverse()
+      .find(item => (item.carbon_emissions?.actual ?? 0) > settings.thresholds.carbon_emissions);
+    if (carbonBreach) {
+      const unit = settings.unitPreference === 'large' ? 'Tonnes CO2' : 'kgCO2';
+      activeAlerts.push({
+        alert_id: `carbon_emissions_exceed_${carbonBreach.timestamp}`,
+        type: 'HIGH_CARBON_EMISSIONS',
+        message: `Carbon emissions of ${carbonBreach.carbon_emissions.actual} ${unit} exceeded the ${settings.thresholds.carbon_emissions} ${unit} threshold.`,
+        timestamp: carbonBreach.timestamp,
+        severity: 'CRITICAL',
+      });
     }
   }
 
@@ -81,7 +105,7 @@ function App() {
           <p className="brand-subtitle">Energy & Emissions Tracker</p>
         </div>
         <div className="header-alerts-slot">
-          <AlertPanel alerts={[...(data?.active_alerts || []), ...dynamicAlerts]} mode="header" />
+          <AlertPanel alerts={activeAlerts} mode="header" />
         </div>
         <div className="status-indicator">
           <span className="pulse-dot"></span>
